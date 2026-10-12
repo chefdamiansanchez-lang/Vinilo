@@ -1,0 +1,50 @@
+name: Compilar APK Vinilo
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+
+      - name: Instalar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Instalar Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.9
+
+      - name: Descomprimir si se subio el zip sin abrir
+        run: |
+          for z in $(find . -maxdepth 2 -name '*.zip' -not -path './.git/*'); do
+            echo "Descomprimiendo $z"
+            unzip -oq "$z" -d "$(dirname "$z")/_descomprimido"
+          done
+
+      - name: Compilar APK
+        run: |
+          S=$(find . -maxdepth 4 -name settings.gradle.kts -not -path './.git/*' | awk '{print length, $0}' | sort -n | head -n 1 | cut -d' ' -f2-)
+          if [ -z "$S" ]; then
+            echo "No se encontro settings.gradle.kts. Contenido del repo:"
+            find . -maxdepth 3 -not -path './.git/*'
+            exit 1
+          fi
+          DIR=$(dirname "$S")
+          echo "Proyecto en: $DIR"
+          cd "$DIR"
+          gradle assembleDebug --no-daemon
+
+      - name: Subir APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Vinilo-APK
+          path: "**/build/outputs/apk/debug/*.apk"
